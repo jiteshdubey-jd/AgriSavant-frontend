@@ -2,7 +2,7 @@ import jwt from "jsonwebtoken";
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import dbConnect from "@/lib/db";
-import User from "@/models/";
+import User from "@/models/User";
 import { compare } from "bcrypt";
 
 export const authOptions: NextAuthOptions = {
