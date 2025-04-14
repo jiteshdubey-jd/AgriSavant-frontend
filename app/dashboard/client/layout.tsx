@@ -65,7 +65,7 @@ export default function ClientLayout({
         <Button
           variant="outline"
           size="icon"
-          onClick={() => setIsSidebarOpen(True)}
+          onClick={() => setIsSidebarOpen(true)}
         >
           {isSidebarOpen ? (
             <X className="h-4 w-4" />

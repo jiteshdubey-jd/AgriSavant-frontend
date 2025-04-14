@@ -15,20 +15,29 @@ import {
 } from "@/components/ui/table";
 import { Pencil, Trash } from "lucide-react";
 
+interface User {
+  _id?: string;
+  role: string;
+  email: string;
+  name: string;
+  id?: string;
+  password?: string;
+}
+
 export default function UserManagement() {
   const { data: session, status } = useSession();
-  const [users, setUsers] = useState([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [newUser, setNewUser] = useState({
+  const [error, setError] = useState<string | null>(null);
+  const [newUser, setNewUser] = useState<User>({
     name: "",
     email: "",
     role: "client",
     password: "", // Add the password field
   });
 
-  const [editUser, setEditUser] = useState(null);
-  const [token, setToken] = useState(null); // ✅ Store token separately
+  const [editUser, setEditUser] = useState<User | null>(null);
+  const [token, setToken] = useState<string | null>(null); // ✅ Store token separately
 
   // ✅ Extract token only when session is available
   useEffect(() => {
@@ -123,11 +132,12 @@ export default function UserManagement() {
       setError(null); // Clear any previous error messages
     } catch (error) {
       console.error("❌ Error adding user:", error);
-      setError(error.message || "Failed to add user. Please try again.");
+      if (error instanceof Error) setError(error.message);
+      else setError("Failed to add user. Please try again.");
     }
   };
 
-  const handleUpdateUser = async (updatedFields) => {
+  const handleUpdateUser = async (updatedFields: User) => {
     if (!updatedFields || typeof updatedFields !== "object") {
       console.error(
         "❌ Error: `updatedFields` is missing or invalid",
@@ -183,7 +193,7 @@ export default function UserManagement() {
     }
   };
 
-  const handleDeleteUser = async (id) => {
+  const handleDeleteUser = async (id: string) => {
     if (!id) {
       console.error(
         "❌ Error: Missing user ID (Check if `_id` is used correctly)"
@@ -323,7 +333,7 @@ export default function UserManagement() {
                     <Button
                       size="icon"
                       variant="ghost"
-                      onClick={() => handleDeleteUser(user._id)}
+                      onClick={() => handleDeleteUser(user._id || "")}
                     >
                       <Trash className="w-4 h-4 text-red-600" />
                     </Button>

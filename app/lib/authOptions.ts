@@ -17,18 +17,18 @@ export const authOptions: NextAuthOptions = {
         console.log("🔹 Login Attempt:", credentials);
 
         await dbConnect();
-        const user = await User.findOne({ email: credentials.email });
+        const user = await User.findOne({ email: credentials?.email });
 
         if (!user) {
-          console.log("❌ No user found with this email:", credentials.email);
+          console.log("❌ No user found with this email:", credentials?.email);
           throw new Error("No user found with this email");
         }
 
         console.log("✅ User found:", user.email);
 
-        const isValid = await compare(credentials.password, user.password);
+        const isValid = await compare(credentials?.password as string, user.password);
         if (!isValid) {
-          console.log("❌ Invalid password for:", credentials.email);
+          console.log("❌ Invalid password for:", credentials?.email);
           throw new Error("Invalid password");
         }
 
@@ -63,9 +63,9 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       session.user = {
         ...session.user,
-        id: token.id,
-        role: token.role,
-        token: token.accessToken,
+        id: token.id as string,
+        role: token.role as string,
+        token: token.accessToken as string,
       };
       return session;
     },

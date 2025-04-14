@@ -15,10 +15,25 @@ import {
 } from "@/components/ui/table";
 import { Trash } from "lucide-react";
 
+interface CropsType {
+  name: string,
+  yield: string,
+  area: string
+}
+
+interface FarmType {
+  _id?: string,
+  id: string,
+  name: string,
+  location: string,
+  size: string,
+  crops: CropsType[]
+}
+
 export default function FarmManagement() {
   const { data: session, status } = useSession();
   const [token, setToken] = useState<string | null>(null);
-  const [farms, setFarms] = useState([]);
+  const [farms, setFarms] = useState<FarmType[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [newFarm, setNewFarm] = useState({
@@ -72,7 +87,7 @@ export default function FarmManagement() {
         );
       }
 
-      const data = await response.json();
+      const data: FarmType[] = await response.json();
 
       // ✅ Normalize farms so each has a consistent `id`
       const normalizedFarms = data.map((farm) => ({
@@ -93,7 +108,7 @@ export default function FarmManagement() {
     fetchFarms();
   }, [fetchFarms]);
 
-  const startEditing = (farm) => {
+  const startEditing = (farm: FarmType) => {
     console.log("📦 Full farm object:", farm);
     console.log("🆔 farm._id:", farm._id);
     console.log("🆔 farm.id:", farm.id);
@@ -261,7 +276,7 @@ export default function FarmManagement() {
           <TableBody>
             {farms.length > 0 ? (
               farms.map((farm, index) => {
-                const farmId = farm._id || farm.id;
+                const farmId = farm._id || farm.id as string;
                 return (
                   <TableRow key={farmId}>
                     <TableCell>{index + 1}</TableCell>

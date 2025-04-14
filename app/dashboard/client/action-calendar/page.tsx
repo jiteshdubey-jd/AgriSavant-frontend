@@ -13,12 +13,19 @@ import {
   CalendarDays,
 } from "lucide-react";
 
+interface Events {
+  date: string;
+  description: string;
+  title: string;
+  type: string;
+}
+
 export default function ActionCalendar() {
   const { data: session } = useSession();
   const userEmail = session?.user?.email;
 
   const [date, setDate] = useState<Date | undefined>(undefined);
-  const [events, setEvents] = useState([]);
+  const [events, setEvents] = useState<Events[]>([]);
   const [newEvent, setNewEvent] = useState({
     title: "",
     description: "",

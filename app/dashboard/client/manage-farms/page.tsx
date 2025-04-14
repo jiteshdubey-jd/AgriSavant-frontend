@@ -9,12 +9,21 @@ import { Input } from "@/components/ui/input";
 import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
+interface CropsType {
+  name: string;
+  yield: string;
+  area: string;
+  harvestDate: string;
+  plantingDate: string;
+  _id: string;
+}
+
 interface Farm {
   _id: string;
   name: string;
   location: string;
   size: number;
-  crops: Crop[];
+  crops: CropsType[];
   showAddCrop?: boolean; // 👈 Add this
 }
 
@@ -26,10 +35,10 @@ export default function ManageFarmsPage() {
   const [creating, setCreating] = useState<boolean>(false);
   const [editingFarmId, setEditingFarmId] = useState<string | null>(null);
   const [tempCropData, setTempCropData] = useState<{
-    [farmId: string]: Partial<Crop>;
+    [farmId: string]: Partial<CropsType>;
   }>({});
   const [editingCropId, setEditingCropId] = useState<string | null>(null);
-  const [editedCrop, setEditedCrop] = useState({});
+  const [editedCrop, setEditedCrop] = useState<Partial<CropsType>>({});
   const { data: session } = useSession();
 
   const updateTempCrop = (

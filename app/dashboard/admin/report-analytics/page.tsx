@@ -13,11 +13,23 @@ import {
   Line,
 } from "recharts";
 
+interface User {
+  role: string,
+  createdAt: string,
+  isActive: string,
+}
+
+interface Logs {
+  _id: string,
+  createdAt: string,
+  action: string
+}
+
 const ReportAnalytics = () => {
-  const [users, setUsers] = useState([]);
-  const [logs, setLogs] = useState([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [logs, setLogs] = useState<Logs[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
   const { data: session, status } = useSession();
 
   const token = session?.user?.token;
@@ -57,7 +69,11 @@ const ReportAnalytics = () => {
         const logsData = await logsRes.json();
         setLogs(logsData);
       } catch (err) {
-        setError(err.message);
+        if (err instanceof Error) {
+          setError(err.message);
+        } else {
+          setError("Internal Error");
+        }
       } finally {
         setLoading(false);
       }
@@ -76,8 +92,8 @@ const ReportAnalytics = () => {
   ];
 
   // 📈 Generate User Signup Trends
-  const signupTrends = users.reduce((acc, user) => {
-    const date = new Date(user.createdAt).toLocaleDateString();
+  const signupTrends = users.reduce<Record<string, number>>((acc, user) => {
+    const date = new Date(user.createdAt).toLocaleDateString("en-GB");
     acc[date] = (acc[date] || 0) + 1;
     return acc;
   }, {});
