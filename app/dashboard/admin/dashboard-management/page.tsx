@@ -123,34 +123,36 @@ export default function DashboardManagementPage() {
         const matchingDashboard = dashboards.find(
           (dash) => dash.farmId._id === farm._id
         );
-        return (
-          matchingDashboard || {
-            _id: `no-dashboard-${farm._id}`,
-            userId,
-            farmId: {
-              _id: farm._id,
-              name: farm.name,
-              location: farm.location,
-            },
-            charts: {
-              rh: [],
-              temp: [],
-              rainfall: [],
-            },
-            weather: {
-              forecast: "",
-              temperature: "",
-              humidity: "",
-            },
-            soil: {
-              pH: 0,
-              moisture: "",
-            },
-            upcomingTasks: [],
-            image: "",
-          }
-        );
+
+        return matchingDashboard
+          ? matchingDashboard
+          : {
+              _id: `no-dashboard-${farm._id}`,
+              userId: userId ?? "", // ✅ fix here
+              farmId: {
+                _id: farm._id,
+                name: farm.name,
+                location: farm.location,
+              },
+              charts: {
+                rh: [],
+                temp: [],
+                rainfall: [],
+              },
+              weather: {
+                forecast: "",
+                temperature: "",
+                humidity: "",
+              },
+              soil: {
+                pH: 0,
+                moisture: "",
+              },
+              upcomingTasks: [],
+              image: "",
+            };
       });
+
       setMergedData(merged);
     }
   }, [farms, dashboards]);
