@@ -69,12 +69,6 @@ export default function Dashboard() {
     farmImage,
   } = currentDashboard;
 
-  // useEffect(() => {
-  //   if (currentPage >= dashboardData.length && dashboardData.length > 0) {
-  //     setCurrentPage(dashboardData.length - 1);
-  //   }
-  // }, [dashboardData, currentPage]);
-
   return (
     <div className="space-y-6 p-6">
       <h1 className="text-3xl text-center font-semibold text-gray-800">
@@ -189,38 +183,40 @@ export default function Dashboard() {
         <h2 className="text-xl font-bold mb-4 text-center">
           Farm Notice Board
         </h2>
-        <Image
-          src={farmImage}
-          alt="Farm"
-          width={500}
-          height={300}
-          className="w-full md:w-1/3 h-auto rounded-lg shadow-md"
-        />
-        <div className="w-full md:w-1/3">
-          <table className="table-auto min-w-full border text-sm md:text-base">
-            <tbody>
-              <tr className="border">
-                <td className="font-semibold py-2 pr-4">Farm size:</td>
-                <td className="py-2">{farmSize} acres</td>
-              </tr>
-              <tr className="border">
-                <td className="font-semibold py-2 pr-4">Crop name:</td>
-                <td className="py-2">{cropName}</td>
-              </tr>
-              <tr className="border">
-                <td className="font-semibold py-2 pr-4">Sowing date:</td>
-                <td className="py-2">
-                  {sowingDate
-                    ? new Date(sowingDate).toLocaleDateString()
-                    : "N/A"}
-                </td>
-              </tr>
-              <tr className="border">
-                <td className="font-semibold py-2 pr-4">Current Stage:</td>
-                <td className="py-2">{stage || "N/A"}</td>
-              </tr>
-            </tbody>
-          </table>
+        <div className="flex  justify-evenly ">
+          <Image
+            src={farmImage}
+            alt="Farm"
+            width={500}
+            height={300}
+            className="w-full md:w-1/3 h-auto rounded-lg shadow-md"
+          />
+          <div className="w-full md:w-1/3">
+            <table className="table-auto min-w-full border  text-sm md:text-base">
+              <tbody>
+                <tr className="border">
+                  <td className="font-semibold py-2 pr-4">Farm size:</td>
+                  <td className="py-2">{farmSize} acres</td>
+                </tr>
+                <tr className="border">
+                  <td className="font-semibold py-2 pr-4">Crop name:</td>
+                  <td className="py-2">{cropName}</td>
+                </tr>
+                <tr className="border">
+                  <td className="font-semibold py-2 pr-4">Sowing date:</td>
+                  <td className="py-2">
+                    {sowingDate
+                      ? new Date(sowingDate).toLocaleDateString()
+                      : "N/A"}
+                  </td>
+                </tr>
+                <tr className="border">
+                  <td className="font-semibold py-2 pr-4">Current Stage:</td>
+                  <td className="py-2">{stage || "N/A"}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>

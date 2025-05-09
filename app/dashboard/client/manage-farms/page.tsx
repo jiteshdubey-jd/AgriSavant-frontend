@@ -15,6 +15,7 @@ interface CropsType {
   area: string;
   harvestDate: string;
   plantingDate: string;
+  stage: string;
   _id: string;
 }
 
@@ -231,14 +232,17 @@ export default function ManageFarmsPage() {
 
       if (!token) throw new Error("No token found in session");
 
-      const res = await fetch(`${process.env.MONGODB_URI}/api/clientFarms`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ name, location, size }),
-      });
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/clientFarms`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ name, location, size }),
+        }
+      );
 
       if (!res.ok) throw new Error("Failed to create farm");
 
@@ -265,7 +269,8 @@ export default function ManageFarmsPage() {
       !crop.area ||
       !crop.yield ||
       !crop.plantingDate ||
-      !crop.harvestDate
+      !crop.harvestDate ||
+      !crop.stage
     ) {
       toast.error("Please fill all crop fields");
       return;
@@ -276,7 +281,7 @@ export default function ManageFarmsPage() {
       const token = session?.user?.token;
 
       const res = await fetch(
-        `${process.env.MONGODB_URI}/api/clientCrops/${farmId}/crops`,
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/clientCrops/${farmId}/crops`,
         {
           method: "POST",
           headers: {
@@ -325,7 +330,7 @@ export default function ManageFarmsPage() {
       const token = session?.user?.token;
 
       const res = await fetch(
-        `${process.env.MONGODB_URI}/api/clientFarms/${farmId}`,
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/clientFarms/${farmId}`,
         {
           method: "PUT",
           headers: {
@@ -590,6 +595,15 @@ export default function ManageFarmsPage() {
                                 }
                               />
                             </div>
+                            <div>
+                              <Label>Current stage</Label>
+                              <Input
+                                value={editedCrop.stage || ""}
+                                onChange={(e) =>
+                                  handleEditCropChange("stage", e.target.value)
+                                }
+                              />
+                            </div>
                             <div className="flex gap-2 mt-2">
                               <Button
                                 onClick={() =>
@@ -661,6 +675,10 @@ export default function ManageFarmsPage() {
                                 ).toLocaleDateString()}
                                 readOnly
                               />
+                            </div>
+                            <div>
+                              <Label>Current Stage</Label>
+                              <Input value={crop.stage} readOnly />
                             </div>
                           </div>
                         )}
@@ -748,6 +766,19 @@ export default function ManageFarmsPage() {
                                   farm._id,
                                   "harvestDate",
                                   new Date(e.target.value).toISOString()
+                                )
+                              }
+                            />
+                          </div>
+                          <div>
+                            <Label>Current Stage</Label>
+                            <Input
+                              placeholder="Current Stage"
+                              onChange={(e) =>
+                                updateTempCrop(
+                                  farm._id,
+                                  "stage",
+                                  e.target.value
                                 )
                               }
                             />

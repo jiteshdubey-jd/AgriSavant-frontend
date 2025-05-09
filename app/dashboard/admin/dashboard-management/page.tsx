@@ -1,19 +1,15 @@
 "use client";
-
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-
-// Define types for the data you're working with
 interface ChartDataPoint {
   day?: string;
   time?: string;
   name?: string;
   value: number;
 }
-
 interface DashboardEntry {
   _id: string;
   userId: string;
@@ -41,11 +37,25 @@ interface DashboardEntry {
   createdAt?: string;
   updatedAt?: string;
 }
-
 export default function DashboardManagementPage() {
   const { data: session, status } = useSession();
   const [dashboards, setDashboards] = useState<DashboardEntry[]>([]);
   const [editingEntry, setEditingEntry] = useState<DashboardEntry | null>(null);
+  const [farms, setFarms] = useState<any[]>([]);
+  const [mergedData, setMergedData] = useState<DashboardEntry[]>([]);
+
+  const [newEntry, setNewEntry] = useState({
+    farmId: { name: "", location: "" },
+    weather: { forecast: "", temperature: "", humidity: "" },
+    soil: { pH: 0, moisture: "" },
+    upcomingTasks: [],
+    image: "",
+    charts: {
+      rh: Array(5).fill({ day: "", value: 0 }),
+      temp: Array(5).fill({ time: "", value: 0 }),
+      rainfall: Array(5).fill({ name: "", value: 0 }),
+    },
+  });
 
   const userId = session?.user?.id;
   const token = session?.user?.token;
@@ -56,10 +66,9 @@ export default function DashboardManagementPage() {
       console.error("User ID or Token not provided.");
       return;
     }
-
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/dashboard`, // Replace with your API endpoint
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/dashboard`,
         {
           method: "GET",
           headers: {
@@ -67,11 +76,9 @@ export default function DashboardManagementPage() {
           },
         }
       );
-
       const data = await response.json();
-
       if (response.ok) {
-        setDashboards(data); // Ensure all necessary data is set in state
+        setDashboards(data);
       } else {
         console.error("Error fetching dashboards:", data.message);
       }
@@ -80,47 +87,151 @@ export default function DashboardManagementPage() {
     }
   };
 
+  const fetchFarms = async () => {
+    if (!token) return;
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/adminFarms`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      const data = await response.json();
+      if (response.ok) {
+        setFarms(data);
+      } else {
+        console.error("Error fetching farms:", data.message);
+      }
+    } catch (error) {
+      console.error("Error fetching farms:", error);
+    }
+  };
+
   useEffect(() => {
     if (status === "authenticated" && userId && token) {
+      fetchFarms();
       fetchDashboards();
     }
   }, [status, userId, token]);
 
-  // Handle save action for edited data
-  const handleSave = async (dashboardId: string) => {
+  useEffect(() => {
+    if (farms.length && dashboards.length) {
+      const merged = farms.map((farm) => {
+        const matchingDashboard = dashboards.find(
+          (dash) => dash.farmId._id === farm._id
+        );
+        return (
+          matchingDashboard || {
+            _id: `no-dashboard-${farm._id}`,
+            userId,
+            farmId: {
+              _id: farm._id,
+              name: farm.name,
+              location: farm.location,
+            },
+            charts: {
+              rh: [],
+              temp: [],
+              rainfall: [],
+            },
+            weather: {
+              forecast: "",
+              temperature: "",
+              humidity: "",
+            },
+            soil: {
+              pH: 0,
+              moisture: "",
+            },
+            upcomingTasks: [],
+            image: "",
+          }
+        );
+      });
+      setMergedData(merged);
+    }
+  }, [farms, dashboards]);
+
+  const handleInputChange = (farmId: string, field: string, value: any) => {
+    setMergedData((prevData) =>
+      prevData.map((item) =>
+        item._id === farmId ? { ...item, [field]: value } : item
+      )
+    );
+  };
+
+  const handleSave = async (dashboardId?: string) => {
     if (!userId || !token || !editingEntry) return;
 
+    const isNew = !dashboardId || dashboardId.startsWith("no-dashboard");
+    const url = isNew
+      ? `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/dashboard`
+      : `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/dashboard/${dashboardId}`;
+    const method = isNew ? "POST" : "PUT";
+
     try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/dashboard/${dashboardId}`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(editingEntry),
-        }
-      );
+      const res = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ ...editingEntry, userId }),
+      });
 
       if (res.ok) {
         await fetchDashboards();
         setEditingEntry(null);
+      } else {
+        const data = await res.json();
+        console.error("Failed to save:", data.message);
       }
     } catch (error) {
       console.error("Error saving dashboard:", error);
     }
   };
 
-  // Handle delete action for a dashboard
+  const handleAddNewEntry = async () => {
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/dashboard`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(newEntry),
+        }
+      );
+
+      if (!res.ok) throw new Error("Failed to add dashboard data");
+
+      const saved = await res.json();
+      setMergedData((prev) => [...prev, saved]);
+      setNewEntry({
+        farmId: { name: "", location: "" },
+        weather: { forecast: "", temperature: "", humidity: "" },
+        soil: { pH: 0, moisture: "" },
+        upcomingTasks: [],
+        image: "",
+        charts: {
+          rh: Array(5).fill({ day: "", value: 0 }),
+          temp: Array(5).fill({ time: "", value: 0 }),
+          rainfall: Array(5).fill({ name: "", value: 0 }),
+        },
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const handleDelete = async (dashboardId: string) => {
     if (!userId || !token) return;
-
     const confirmDelete = confirm(
       "Are you sure you want to delete this dashboard?"
     );
     if (!confirmDelete) return;
-
     try {
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/dashboard/${dashboardId}`,
@@ -131,7 +242,6 @@ export default function DashboardManagementPage() {
           },
         }
       );
-
       if (res.ok) {
         await fetchDashboards(); // Refresh list after deletion
       } else {
@@ -142,7 +252,6 @@ export default function DashboardManagementPage() {
       console.error("Error deleting dashboard:", error);
     }
   };
-
   if (status === "loading") {
     return <p className="text-center p-10">Loading session...</p>;
   }
@@ -152,14 +261,11 @@ export default function DashboardManagementPage() {
       <h1 className="text-3xl font-bold text-center text-gray-800">
         Admin Dashboard Management
       </h1>
-
-      {/* Scrollable table displaying dashboard data */}
       <div className="overflow-x-auto max-w-full">
         <table className="min-w-full table-auto border-collapse">
           <thead>
             <tr>
               <th className="border p-2">Farm Name</th>
-              <th className="border p-2">Location</th>
               <th className="border p-2">Weather Forecast</th>
               <th className="border p-2">Temperature</th>
               <th className="border p-2">Humidity</th>
@@ -174,18 +280,16 @@ export default function DashboardManagementPage() {
             </tr>
           </thead>
           <tbody>
-            {dashboards.length === 0 ? (
+            {mergedData.length === 0 ? (
               <tr>
                 <td colSpan={13} className="text-center p-4">
                   No dashboards found.
                 </td>
               </tr>
             ) : (
-              dashboards.map((dash) => (
+              mergedData.map((dash) => (
                 <tr key={dash._id}>
-                  {/* Editable Fields */}
-
-                  {/* <td className="border p-2">
+                  <td className="border p-2">
                     {editingEntry?._id === dash._id ? (
                       <Input
                         value={editingEntry.farmId.name}
@@ -201,24 +305,6 @@ export default function DashboardManagementPage() {
                       />
                     ) : (
                       dash.farmId.name
-                    )}
-                  </td> */}
-                  <td className="border p-2">
-                    {editingEntry?._id === dash._id ? (
-                      <Input
-                        value={editingEntry.farmId.location}
-                        onChange={(e) =>
-                          setEditingEntry({
-                            ...editingEntry,
-                            farmId: {
-                              ...editingEntry.farmId,
-                              location: e.target.value,
-                            },
-                          })
-                        }
-                      />
-                    ) : (
-                      dash.farmId.location
                     )}
                   </td>
                   <td className="border p-2">
@@ -286,17 +372,19 @@ export default function DashboardManagementPage() {
                       </tbody>
                     </table>
                   </td>
-
+                  {/* Soil pH */}
                   <td className="border p-2">
                     {editingEntry?._id === dash._id ? (
                       <Input
+                        type="number"
+                        className="w-24 text-base px-2 py-1"
                         value={editingEntry.soil.pH}
                         onChange={(e) =>
                           setEditingEntry({
                             ...editingEntry,
                             soil: {
                               ...editingEntry.soil,
-                              pH: parseFloat(e.target.value),
+                              pH: parseFloat(e.target.value) || 0,
                             },
                           })
                         }
@@ -305,6 +393,7 @@ export default function DashboardManagementPage() {
                       dash.soil.pH
                     )}
                   </td>
+
                   <td className="border p-2">
                     {editingEntry?._id === dash._id ? (
                       <Input
@@ -361,234 +450,316 @@ export default function DashboardManagementPage() {
                       dash.image
                     )}
                   </td>
+
                   {/* Humidity (RH) Table */}
                   <td className="border p-2">
                     <table className="border-collapse border">
                       <thead>
                         <tr>
                           <th className="border p-2">Day</th>
-                          {dash.charts.rh.map((point, index) => (
-                            <th key={index} className="border p-2">
-                              {editingEntry?._id === dash._id ? (
-                                <Input
-                                  value={
-                                    editingEntry.charts.rh[index]?.day || ""
-                                  }
-                                  onChange={(e) => {
-                                    const updatedRH = [
-                                      ...editingEntry.charts.rh,
-                                    ];
-                                    updatedRH[index].day = e.target.value;
-                                    setEditingEntry({
-                                      ...editingEntry,
-                                      charts: {
-                                        ...editingEntry.charts,
-                                        rh: updatedRH,
-                                      },
-                                    });
-                                  }}
-                                />
-                              ) : (
-                                point.day
-                              )}
-                            </th>
-                          ))}
+                          {Array.from({ length: 7 }).map((_, index) => {
+                            const point = dash.charts.rh?.[index] || {};
+                            return (
+                              <th key={index} className="border p-2">
+                                {editingEntry?._id === dash._id ? (
+                                  <Input
+                                    value={
+                                      editingEntry.charts.rh?.[index]?.day || ""
+                                    }
+                                    onChange={(e) => {
+                                      const updatedRH = [
+                                        ...(editingEntry.charts.rh ||
+                                          Array(7).fill({ day: "", value: 0 })),
+                                      ];
+                                      updatedRH[index] = {
+                                        ...updatedRH[index],
+                                        day: e.target.value,
+                                      };
+                                      setEditingEntry({
+                                        ...editingEntry,
+                                        charts: {
+                                          ...editingEntry.charts,
+                                          rh: updatedRH,
+                                        },
+                                      });
+                                    }}
+                                  />
+                                ) : (
+                                  point.day || "-"
+                                )}
+                              </th>
+                            );
+                          })}
                         </tr>
                       </thead>
                       <tbody>
                         <tr>
                           <td className="border p-2 font-semibold">Value</td>
-                          {dash.charts.rh.map((point, index) => (
-                            <td key={index} className="border p-2">
-                              {editingEntry?._id === dash._id ? (
-                                <Input
-                                  value={
-                                    editingEntry.charts.rh[index]?.value || ""
-                                  }
-                                  onChange={(e) => {
-                                    const updatedRH = [
-                                      ...editingEntry.charts.rh,
-                                    ];
-                                    updatedRH[index].value =
-                                      parseFloat(e.target.value) || 0;
-                                    setEditingEntry({
-                                      ...editingEntry,
-                                      charts: {
-                                        ...editingEntry.charts,
-                                        rh: updatedRH,
-                                      },
-                                    });
-                                  }}
-                                />
-                              ) : (
-                                `${point.value}%`
-                              )}
-                            </td>
-                          ))}
+                          {Array.from({ length: 7 }).map((_, index) => {
+                            const point = dash.charts.rh?.[index] || {};
+                            return (
+                              <td key={index} className="border p-2">
+                                {editingEntry?._id === dash._id ? (
+                                  <Input
+                                    type="number"
+                                    value={
+                                      editingEntry.charts.rh?.[index]?.value ??
+                                      ""
+                                    }
+                                    onChange={(e) => {
+                                      const updatedRH = [
+                                        ...(editingEntry.charts.rh ||
+                                          Array(7).fill({ day: "", value: 0 })),
+                                      ];
+                                      updatedRH[index] = {
+                                        ...updatedRH[index],
+                                        value: parseFloat(e.target.value) || 0,
+                                      };
+                                      setEditingEntry({
+                                        ...editingEntry,
+                                        charts: {
+                                          ...editingEntry.charts,
+                                          rh: updatedRH,
+                                        },
+                                      });
+                                    }}
+                                  />
+                                ) : point.value !== undefined ? (
+                                  `${point.value}%`
+                                ) : (
+                                  "-"
+                                )}
+                              </td>
+                            );
+                          })}
                         </tr>
                       </tbody>
                     </table>
                   </td>
 
-                  {/* Temperature (Temp) Table */}
+                  {/* Temperature (RH) Table */}
                   <td className="border p-2">
                     <table className="border-collapse border">
                       <thead>
                         <tr>
                           <th className="border p-2">Time</th>
-                          {dash.charts.temp.map((point, index) => (
-                            <th key={index} className="border p-2">
-                              {editingEntry?._id === dash._id ? (
-                                <Input
-                                  value={
-                                    editingEntry.charts.temp[index]?.time || ""
-                                  }
-                                  onChange={(e) => {
-                                    const updatedTemp = [
-                                      ...editingEntry.charts.temp,
-                                    ];
-                                    updatedTemp[index].time = e.target.value;
-                                    setEditingEntry({
-                                      ...editingEntry,
-                                      charts: {
-                                        ...editingEntry.charts,
-                                        temp: updatedTemp,
-                                      },
-                                    });
-                                  }}
-                                />
-                              ) : (
-                                point.time
-                              )}
-                            </th>
-                          ))}
+                          {Array.from({ length: 4 }).map((_, index) => {
+                            const point = dash.charts.temp?.[index] || {};
+                            return (
+                              <th key={index} className="border p-2">
+                                {editingEntry?._id === dash._id ? (
+                                  <Input
+                                    value={
+                                      editingEntry.charts.temp?.[index]?.time ||
+                                      ""
+                                    }
+                                    onChange={(e) => {
+                                      const updatedTemp = [
+                                        ...(editingEntry.charts.temp ||
+                                          Array(4).fill({
+                                            time: "",
+                                            value: 0,
+                                          })),
+                                      ];
+                                      updatedTemp[index] = {
+                                        ...updatedTemp[index],
+                                        time: e.target.value,
+                                      };
+                                      setEditingEntry({
+                                        ...editingEntry,
+                                        charts: {
+                                          ...editingEntry.charts,
+                                          temp: updatedTemp,
+                                        },
+                                      });
+                                    }}
+                                  />
+                                ) : (
+                                  point.time || "-"
+                                )}
+                              </th>
+                            );
+                          })}
                         </tr>
                       </thead>
                       <tbody>
                         <tr>
                           <td className="border p-2 font-semibold">Value</td>
-                          {dash.charts.temp.map((point, index) => (
-                            <td key={index} className="border p-2">
-                              {editingEntry?._id === dash._id ? (
-                                <Input
-                                  value={
-                                    editingEntry.charts.temp[index]?.value || ""
-                                  }
-                                  onChange={(e) => {
-                                    const updatedTemp = [
-                                      ...editingEntry.charts.temp,
-                                    ];
-                                    updatedTemp[index].value =
-                                      parseFloat(e.target.value) || 0;
-                                    setEditingEntry({
-                                      ...editingEntry,
-                                      charts: {
-                                        ...editingEntry.charts,
-                                        temp: updatedTemp,
-                                      },
-                                    });
-                                  }}
-                                />
-                              ) : (
-                                point.value
-                              )}
-                            </td>
-                          ))}
+                          {Array.from({ length: 4 }).map((_, index) => {
+                            const point = dash.charts.temp?.[index] || {};
+                            return (
+                              <td key={index} className="border p-2">
+                                {editingEntry?._id === dash._id ? (
+                                  <Input
+                                    type="number"
+                                    value={
+                                      editingEntry.charts.temp?.[index]
+                                        ?.value ?? ""
+                                    }
+                                    onChange={(e) => {
+                                      const updatedTemp = [
+                                        ...(editingEntry.charts.temp ||
+                                          Array(4).fill({
+                                            time: "",
+                                            value: 0,
+                                          })),
+                                      ];
+                                      updatedTemp[index] = {
+                                        ...updatedTemp[index],
+                                        value: parseFloat(e.target.value) || 0,
+                                      };
+                                      setEditingEntry({
+                                        ...editingEntry,
+                                        charts: {
+                                          ...editingEntry.charts,
+                                          temp: updatedTemp,
+                                        },
+                                      });
+                                    }}
+                                  />
+                                ) : point.value !== undefined ? (
+                                  `${point.value}°C`
+                                ) : (
+                                  "-"
+                                )}
+                              </td>
+                            );
+                          })}
                         </tr>
                       </tbody>
                     </table>
                   </td>
 
-                  {/* Rainfall Table */}
+                  {/* Rainfall */}
                   <td className="border p-2">
                     <table className="border-collapse border">
                       <thead>
                         <tr>
                           <th className="border p-2">Name</th>
-                          {dash.charts.rainfall.map((point, index) => (
-                            <th key={index} className="border p-2">
-                              {editingEntry?._id === dash._id ? (
-                                <Input
-                                  value={
-                                    editingEntry.charts.rainfall[index]?.name ||
-                                    ""
-                                  }
-                                  onChange={(e) => {
-                                    const updatedRainfall = [
-                                      ...editingEntry.charts.rainfall,
-                                    ];
-                                    updatedRainfall[index].name =
-                                      e.target.value;
-                                    setEditingEntry({
-                                      ...editingEntry,
-                                      charts: {
-                                        ...editingEntry.charts,
-                                        rainfall: updatedRainfall,
-                                      },
-                                    });
-                                  }}
-                                />
-                              ) : (
-                                point.name
-                              )}
-                            </th>
-                          ))}
+                          {Array.from({ length: 3 }).map((_, index) => {
+                            const point = dash.charts.rainfall?.[index] || {};
+                            return (
+                              <th key={index} className="border p-2">
+                                {editingEntry?._id === dash._id ? (
+                                  <Input
+                                    value={
+                                      editingEntry.charts.rainfall?.[index]
+                                        ?.name || ""
+                                    }
+                                    onChange={(e) => {
+                                      const updatedRainfall = [
+                                        ...(editingEntry.charts.rainfall ||
+                                          Array(3).fill({
+                                            name: "",
+                                            value: 0,
+                                          })),
+                                      ];
+                                      updatedRainfall[index] = {
+                                        ...updatedRainfall[index],
+                                        name: e.target.value,
+                                      };
+                                      setEditingEntry({
+                                        ...editingEntry,
+                                        charts: {
+                                          ...editingEntry.charts,
+                                          rainfall: updatedRainfall,
+                                        },
+                                      });
+                                    }}
+                                  />
+                                ) : (
+                                  point.name || "-"
+                                )}
+                              </th>
+                            );
+                          })}
                         </tr>
                       </thead>
                       <tbody>
                         <tr>
                           <td className="border p-2 font-semibold">Value</td>
-                          {dash.charts.rainfall.map((point, index) => (
-                            <td key={index} className="border p-2">
-                              {editingEntry?._id === dash._id ? (
-                                <Input
-                                  value={
-                                    editingEntry.charts.rainfall[index]
-                                      ?.value || ""
-                                  }
-                                  onChange={(e) => {
-                                    const updatedRainfall = [
-                                      ...editingEntry.charts.rainfall,
-                                    ];
-                                    updatedRainfall[index].value =
-                                      parseFloat(e.target.value) || 0;
-                                    setEditingEntry({
-                                      ...editingEntry,
-                                      charts: {
-                                        ...editingEntry.charts,
-                                        rainfall: updatedRainfall,
-                                      },
-                                    });
-                                  }}
-                                />
-                              ) : (
-                                point.value
-                              )}
-                            </td>
-                          ))}
+                          {Array.from({ length: 3 }).map((_, index) => {
+                            const point = dash.charts.rainfall?.[index] || {};
+                            return (
+                              <td key={index} className="border p-2">
+                                {editingEntry?._id === dash._id ? (
+                                  <Input
+                                    type="number"
+                                    value={
+                                      editingEntry.charts.rainfall?.[index]
+                                        ?.value ?? ""
+                                    }
+                                    onChange={(e) => {
+                                      const updatedRainfall = [
+                                        ...(editingEntry.charts.rainfall ||
+                                          Array(3).fill({
+                                            name: "",
+                                            value: 0,
+                                          })),
+                                      ];
+                                      updatedRainfall[index] = {
+                                        ...updatedRainfall[index],
+                                        value: parseFloat(e.target.value) || 0,
+                                      };
+                                      setEditingEntry({
+                                        ...editingEntry,
+                                        charts: {
+                                          ...editingEntry.charts,
+                                          rainfall: updatedRainfall,
+                                        },
+                                      });
+                                    }}
+                                  />
+                                ) : point.value !== undefined ? (
+                                  `${point.value}mm`
+                                ) : (
+                                  "-"
+                                )}
+                              </td>
+                            );
+                          })}
                         </tr>
                       </tbody>
                     </table>
                   </td>
 
-                  <td className="border p-2 flex items-center space-x-2">
-                    <Button
-                      variant="outline"
-                      onClick={() =>
-                        editingEntry?._id === dash._id
-                          ? handleSave(dash._id)
-                          : setEditingEntry(dash)
-                      }
-                    >
-                      {editingEntry?._id === dash._id ? "Save" : "Edit"}
-                    </Button>
-
-                    <Button
-                      variant="destructive"
-                      onClick={() => handleDelete(dash._id)}
-                    >
-                      Delete
-                    </Button>
+                  {/* Actions */}
+                  <td className="border p-2 space-y-2">
+                    {editingEntry?._id === dash._id ? (
+                      <>
+                        <Button
+                          variant="default"
+                          className="w-full bg-green-500 text-white"
+                          onClick={() => handleSave(dash._id)}
+                        >
+                          Save
+                        </Button>
+                        <Button
+                          variant="outline"
+                          className="w-full bg-gray-400 text-white"
+                          onClick={() => setEditingEntry(null)}
+                        >
+                          Cancel
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button
+                          // variant="secondary"
+                          className="w-full bg-blue-500 text-white"
+                          onClick={() => setEditingEntry(dash)}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          className="w-full bg-red-500 text-white"
+                          onClick={() => handleDelete(dash._id)}
+                        >
+                          Delete
+                        </Button>
+                      </>
+                    )}
                   </td>
                 </tr>
               ))

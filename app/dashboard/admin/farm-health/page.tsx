@@ -51,13 +51,6 @@ export default function AdminFarmHealth() {
   const searchParams = useSearchParams();
   const farmId = searchParams.get("farmId"); // Retrieve farmId from URL query string
 
-  useEffect(() => {
-    if (farmId) {
-      console.log("Fetching farm health for farmId:", farmId);
-      fetchFarmHealth(farmId);
-    }
-  }, [farmId]);
-
   const fetchFarmHealth = async (farmId: string) => {
     setLoading(true);
     try {
@@ -76,16 +69,57 @@ export default function AdminFarmHealth() {
         }
       );
 
-      if (!res.ok) throw new Error(`Error ${res.status}`);
-      const data = await res.json();
-      console.log("Fetched farm health data:", data); // Log the data
-      setFarmsWithHealth([data]);
+      if (res.status === 404) {
+        // No farm health data yet, construct an empty shell
+        const fallback = {
+          _id: "new",
+          farmId,
+          farmDetails: {
+            name: "Unknown Farm",
+            location: "Unknown",
+            size: 0,
+            userId: "",
+          },
+          pestPressure: {
+            needleValue: 0,
+            pests: [{ name: "", level: 0 }],
+          },
+          nutrientStatus: {
+            needleValue: 0,
+            nutrients: [{ name: "", level: 0 }],
+          },
+          diseaseRisk: {
+            needleValue: 0,
+            riskLevel: "Low",
+            potentialDiseases: [],
+            suggestions: "",
+          },
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+
+        setFarmsWithHealth([fallback]); // <--- this was missing
+        setEditingFarmId("new"); // immediately start editing the new record
+        setEditedFarmData(fallback);
+      } else if (!res.ok) {
+        throw new Error(`Error ${res.status}`);
+      } else {
+        const data = await res.json();
+        setFarmsWithHealth([data]);
+      }
     } catch (error) {
       console.error("Failed to fetch farm health data", error);
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (farmId) {
+      console.log("Fetching farm health for farmId:", farmId);
+      fetchFarmHealth(farmId);
+    }
+  }, [farmId]);
 
   useEffect(() => {
     console.log("Farms data loaded:", farmsWithHealth); // Log farms data
@@ -148,6 +182,40 @@ export default function AdminFarmHealth() {
       handleCancelEdit();
     } catch (error) {
       console.error("Error saving farm health:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreate = async () => {
+    if (!editedFarmData) return;
+    setLoading(true);
+    try {
+      const session = await getSession();
+      const token = session?.user?.token;
+      if (!token) throw new Error("No token found.");
+
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/farmhealth`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(editedFarmData),
+        }
+      );
+
+      if (!res.ok) throw new Error("Failed to create farm health record.");
+
+      const created = await res.json();
+    setFarmsWithHealth((prev) => [...prev, created]);
+
+      setEditingFarmId(null);
+      setEditedFarmData(null);
+    } catch (error) {
+      console.error("Error creating farm health:", error);
     } finally {
       setLoading(false);
     }
@@ -271,11 +339,14 @@ export default function AdminFarmHealth() {
                                 )
                               }
                               className="border px-1"
+                              type="number"
                             />
                           ) : (
                             currentFarm?.pestPressure?.needleValue
                           )}
                         </div>
+
+                        {/* Pest Pressure Table */}
                         <table className="w-full text-sm text-left border border-gray-300 mt-2">
                           <thead>
                             <tr>
@@ -289,32 +360,104 @@ export default function AdminFarmHealth() {
                           </thead>
 
                           <tbody>
-                            {currentFarm?.pestPressure?.pests.map((pest, i) => (
-                              <tr key={i}>
-                                <td className="border px-2 py-1">
-                                  {pest.name}
-                                </td>
-                                <td className="border px-2 py-1">
-                                  {isEditing ? (
-                                    <input
-                                      value={pest.level}
-                                      onChange={(e) =>
-                                        handleFieldChange(
-                                          `pestPressure.pests.${i}.level`,
-                                          e.target.value
-                                        )
-                                      }
-                                      className="border px-1"
-                                    />
-                                  ) : (
-                                    pest.level
-                                  )}
-                                </td>
-                              </tr>
-                            ))}
+                            {isEditing ? (
+                              <>
+                                {editedFarmData?.pestPressure?.pests?.map(
+                                  (pest, index) => (
+                                    <tr key={index}>
+                                      <td className="border px-2 py-1">
+                                        <input
+                                          type="text"
+                                          placeholder="Pest name"
+                                          value={pest.name}
+                                          onChange={(e) => {
+                                            const updated = [
+                                              ...(editedFarmData.pestPressure
+                                                ?.pests || []),
+                                            ];
+                                            updated[index].name =
+                                              e.target.value;
+                                            setEditedFarmData((prev) => ({
+                                              ...prev!,
+                                              pestPressure: {
+                                                ...prev!.pestPressure!,
+                                                pests: updated,
+                                              },
+                                            }));
+                                          }}
+                                          className="border px-1 w-full"
+                                        />
+                                      </td>
+                                      <td className="border px-2 py-1">
+                                        <input
+                                          type="number"
+                                          placeholder="Level"
+                                          value={pest.level}
+                                          onChange={(e) => {
+                                            const updated = [
+                                              ...(editedFarmData.pestPressure
+                                                ?.pests || []),
+                                            ];
+                                            updated[index].level = parseInt(
+                                              e.target.value
+                                            );
+                                            setEditedFarmData((prev) => ({
+                                              ...prev!,
+                                              pestPressure: {
+                                                ...prev!.pestPressure!,
+                                                pests: updated,
+                                              },
+                                            }));
+                                          }}
+                                          className="border px-1 w-full"
+                                        />
+                                      </td>
+                                    </tr>
+                                  )
+                                )}
+                                <tr>
+                                  <td colSpan={2} className="px-2 py-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const newPests = [
+                                          ...(editedFarmData?.pestPressure
+                                            ?.pests || []),
+                                        ];
+                                        newPests.push({ name: "", level: 0 });
+                                        setEditedFarmData((prev) => ({
+                                          ...prev!,
+                                          pestPressure: {
+                                            ...prev!.pestPressure!,
+                                            pests: newPests,
+                                          },
+                                        }));
+                                      }}
+                                      className="text-blue-600 hover:underline text-sm"
+                                    >
+                                      + Add Pest
+                                    </button>
+                                  </td>
+                                </tr>
+                              </>
+                            ) : (
+                              currentFarm?.pestPressure?.pests.map(
+                                (pest, i) => (
+                                  <tr key={i}>
+                                    <td className="border px-2 py-1">
+                                      {pest.name}
+                                    </td>
+                                    <td className="border px-2 py-1">
+                                      {pest.level}
+                                    </td>
+                                  </tr>
+                                )
+                              )
+                            )}
                           </tbody>
                         </table>
                       </td>
+
                       {/* Nutrient Status */}
                       <td className="border border-gray-300 px-3 py-2">
                         <div className="font-semibold">
@@ -345,35 +488,121 @@ export default function AdminFarmHealth() {
                             </tr>
                           </thead>
                           <tbody>
-                            {currentFarm?.nutrientStatus?.nutrients?.map(
-                              (nutrient, i) => (
-                                <tr key={i}>
-                                  <td className="border px-2 py-1">
-                                    {nutrient.name}
-                                  </td>
-                                  <td className="border px-2 py-1">
-                                    {isEditing ? (
-                                      <input
-                                        value={nutrient.level}
-                                        onChange={(e) =>
-                                          handleFieldChange(
-                                            `nutrientStatus.nutrients.${i}.level`,
-                                            e.target.value
-                                          )
-                                        }
-                                        className="border px-1"
-                                      />
-                                    ) : (
-                                      nutrient.level
-                                    )}
+                            {isEditing ? (
+                              <>
+                                {editedFarmData?.nutrientStatus?.nutrients?.map(
+                                  (nutrient, index) => (
+                                    <tr key={index}>
+                                      <td className="border px-2 py-1">
+                                        <input
+                                          type="text"
+                                          placeholder="Nutrient name"
+                                          value={nutrient.name}
+                                          onChange={(e) => {
+                                            const updated = [
+                                              ...(editedFarmData.nutrientStatus
+                                                ?.nutrients || []),
+                                            ];
+                                            updated[index].name =
+                                              e.target.value;
+                                            setEditedFarmData((prev) => ({
+                                              ...prev!,
+                                              nutriStatus: {
+                                                ...prev!.nutrientStatus!,
+                                                nutrients: updated,
+                                              },
+                                            }));
+                                          }}
+                                          className="border px-1 w-full"
+                                        />
+                                      </td>
+                                      <td className="border px-2 py-1">
+                                        <input
+                                          type="number"
+                                          placeholder="Level"
+                                          value={nutrient.level}
+                                          onChange={(e) => {
+                                            const updated = [
+                                              ...(editedFarmData.nutrientStatus
+                                                ?.nutrients || []),
+                                            ];
+                                            updated[index].level = parseInt(
+                                              e.target.value
+                                            );
+                                            setEditedFarmData((prev) => ({
+                                              ...prev!,
+                                              nutriStatus: {
+                                                ...prev!.nutrientStatus!,
+                                                nutrients: updated,
+                                              },
+                                            }));
+                                          }}
+                                          className="border px-1 w-full"
+                                        />
+                                      </td>
+                                    </tr>
+                                  )
+                                )}
+                                <tr>
+                                  <td colSpan={2} className="px-2 py-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const newNutrients = [
+                                          ...(editedFarmData?.nutrientStatus
+                                            ?.nutrients || []),
+                                        ];
+                                        newNutrients.push({
+                                          name: "",
+                                          level: 0,
+                                        });
+                                        setEditedFarmData((prev) => ({
+                                          ...prev!,
+                                          nutrientStatus: {
+                                            ...prev!.nutrientStatus!,
+                                            nutrients: newNutrients,
+                                          },
+                                        }));
+                                      }}
+                                      className="text-blue-600 hover:underline text-sm"
+                                    >
+                                      + Add Nutrient
+                                    </button>
                                   </td>
                                 </tr>
+                              </>
+                            ) : (
+                              currentFarm?.nutrientStatus?.nutrients?.map(
+                                (nutrient, i) => (
+                                  <tr key={i}>
+                                    <td className="border px-2 py-1">
+                                      {nutrient.name}
+                                    </td>
+                                    <td className="border px-2 py-1">
+                                      {isEditing ? (
+                                        <input
+                                          value={nutrient.level}
+                                          onChange={(e) =>
+                                            handleFieldChange(
+                                              `nutrientStatus.nutrients.${i}.level`,
+                                              e.target.value
+                                            )
+                                          }
+                                          className="border px-1"
+                                        />
+                                      ) : (
+                                        nutrient.level
+                                      )}
+                                    </td>{" "}
+                                  </tr>
+                                )
                               )
                             )}
                           </tbody>
                         </table>
                       </td>
 
+                      {/* Disease Status */}
                       <td className="border border-gray-300 px-3 py-2">
                         <table className="w-full text-sm text-left border border-gray-300">
                           <tbody>
@@ -440,7 +669,22 @@ export default function AdminFarmHealth() {
                                 Risk Level
                               </th>
                               <td className="border px-2 py-1">
-                                {currentFarm?.diseaseRisk?.riskLevel ?? "N/A"}
+                                {isEditing ? (
+                                  <input
+                                    value={
+                                      currentFarm?.diseaseRisk?.riskLevel ?? ""
+                                    }
+                                    onChange={(e) =>
+                                      handleFieldChange(
+                                        "diseaseRisk.riskLevel",
+                                        e.target.value
+                                      )
+                                    }
+                                    className="border px-1"
+                                  />
+                                ) : (
+                                  currentFarm?.diseaseRisk?.riskLevel ?? "N/A"
+                                )}
                               </td>
                             </tr>
 
@@ -476,37 +720,43 @@ export default function AdminFarmHealth() {
                       {/* Render editable data */}
                       <td className="border border-gray-300 px-3 py-2">
                         {isEditing ? (
-                          <>
+                          <div className="space-x-2">
                             <Button
-                              onClick={handleSave}
-                              className="mr-2"
-                              disabled={loading}
+                              onClick={
+                                editingFarmId === "new"
+                                  ? handleCreate
+                                  : handleSave
+                              }
+                              size="sm"
+                              className="bg-green-500 hover:bg-green-600"
                             >
                               Save
                             </Button>
+
                             <Button
-                              variant="secondary"
                               onClick={handleCancelEdit}
+                              size="sm"
+                              variant="outline"
                             >
                               Cancel
                             </Button>
-                          </>
+                          </div>
                         ) : (
-                          <>
+                          <div className="space-x-2">
                             <Button
                               onClick={() => handleEditClick(farm)}
-                              className="mr-2"
+                              size="sm"
                             >
                               Edit
                             </Button>
                             <Button
                               onClick={() => handleDelete(farm._id)}
+                              size="sm"
                               variant="destructive"
-                              disabled={isDeleting}
                             >
                               Delete
                             </Button>
-                          </>
+                          </div>
                         )}
                       </td>
                     </tr>

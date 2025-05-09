@@ -85,7 +85,7 @@ export default function Home() {
                     Yield Analytics
                   </h3>
                   <p className="mt-2 text-gray-600">
-                    Analyze and optimize your farm's performance
+                    Analyze and optimize your farm&apos;s performance
                   </p>
                 </div>
               </Card>
