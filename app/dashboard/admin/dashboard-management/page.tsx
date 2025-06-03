@@ -4,6 +4,7 @@ import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { UploadCloud } from "lucide-react";
 interface ChartDataPoint {
   day?: string;
   time?: string;
@@ -49,7 +50,7 @@ export default function DashboardManagementPage() {
     weather: { forecast: "", temperature: "", humidity: "" },
     soil: { pH: 0, moisture: "" },
     upcomingTasks: [],
-    image: "",
+    image: undefined, // or just omit it if it's optional
     charts: {
       rh: Array(5).fill({ day: "", value: 0 }),
       temp: Array(5).fill({ time: "", value: 0 }),
@@ -121,14 +122,14 @@ export default function DashboardManagementPage() {
     if (farms.length && dashboards.length) {
       const merged = farms.map((farm) => {
         const matchingDashboard = dashboards.find(
-          (dash) => dash.farmId._id === farm._id
+          (dash) => dash.farmId && dash.farmId._id === farm._id
         );
 
         return matchingDashboard
           ? matchingDashboard
           : {
               _id: `no-dashboard-${farm._id}`,
-              userId: userId ?? "", // ✅ fix here
+              userId: userId ?? "",
               farmId: {
                 _id: farm._id,
                 name: farm.name,
@@ -149,7 +150,7 @@ export default function DashboardManagementPage() {
                 moisture: "",
               },
               upcomingTasks: [],
-              image: "",
+              image: undefined, // or just omit it if it's optional
             };
       });
 
@@ -216,7 +217,7 @@ export default function DashboardManagementPage() {
         weather: { forecast: "", temperature: "", humidity: "" },
         soil: { pH: 0, moisture: "" },
         upcomingTasks: [],
-        image: "",
+        image: undefined, // or just omit it if it's optional
         charts: {
           rh: Array(5).fill({ day: "", value: 0 }),
           temp: Array(5).fill({ time: "", value: 0 }),
@@ -437,19 +438,39 @@ export default function DashboardManagementPage() {
                       ))
                     )}
                   </td>
-                  <td className="border p-2">
+                  <td className="border p-2 text-center">
                     {editingEntry?._id === dash._id ? (
-                      <Input
-                        value={editingEntry.image}
-                        onChange={(e) =>
-                          setEditingEntry({
-                            ...editingEntry,
-                            image: e.target.value,
-                          })
-                        }
-                      />
+                      <>
+                        <label
+                          htmlFor={`image-upload-${dash._id}`}
+                          className="cursor-pointer"
+                        >
+                          <UploadCloud className="w-5 h-5 text-blue-500" />
+                        </label>
+                        <input
+                          id={`image-upload-${dash._id}`}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onloadend = () => {
+                                setEditingEntry({
+                                  ...editingEntry,
+                                  image: reader.result as string, // store base64
+                                });
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                        />
+                      </>
+                    ) : dash.image ? (
+                      <span className="text-gray-500 italic">Uploaded</span>
                     ) : (
-                      dash.image
+                      <span className="text-gray-400 italic">No image</span>
                     )}
                   </td>
 
@@ -465,6 +486,7 @@ export default function DashboardManagementPage() {
                               <th key={index} className="border p-2">
                                 {editingEntry?._id === dash._id ? (
                                   <Input
+                                    className="w-full px-2 py-1"
                                     value={
                                       editingEntry.charts.rh?.[index]?.day || ""
                                     }
@@ -504,6 +526,7 @@ export default function DashboardManagementPage() {
                                 {editingEntry?._id === dash._id ? (
                                   <Input
                                     type="number"
+                                    className="w-14 px-2 py-1"
                                     value={
                                       editingEntry.charts.rh?.[index]?.value ??
                                       ""
@@ -539,7 +562,7 @@ export default function DashboardManagementPage() {
                     </table>
                   </td>
 
-                  {/* Temperature (RH) Table */}
+                  {/* Temperature Table */}
                   <td className="border p-2">
                     <table className="border-collapse border">
                       <thead>
@@ -551,6 +574,7 @@ export default function DashboardManagementPage() {
                               <th key={index} className="border p-2">
                                 {editingEntry?._id === dash._id ? (
                                   <Input
+                                    // className="w-full px-2 py-1"
                                     value={
                                       editingEntry.charts.temp?.[index]?.time ||
                                       ""
@@ -593,6 +617,7 @@ export default function DashboardManagementPage() {
                               <td key={index} className="border p-2">
                                 {editingEntry?._id === dash._id ? (
                                   <Input
+                                    className="w-16 py-1"
                                     type="number"
                                     value={
                                       editingEntry.charts.temp?.[index]
@@ -687,6 +712,7 @@ export default function DashboardManagementPage() {
                                 {editingEntry?._id === dash._id ? (
                                   <Input
                                     type="number"
+                                    className="w-14 px-2 py-1"
                                     value={
                                       editingEntry.charts.rainfall?.[index]
                                         ?.value ?? ""
