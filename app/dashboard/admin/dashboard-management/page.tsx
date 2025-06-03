@@ -13,7 +13,11 @@ interface ChartDataPoint {
 }
 interface DashboardEntry {
   _id: string;
-  userId: string;
+  userId: {
+    _id: string;
+    name: string;
+    email: string;
+  };
   farmId: {
     _id: string;
     name: string;
@@ -46,11 +50,12 @@ export default function DashboardManagementPage() {
   const [mergedData, setMergedData] = useState<DashboardEntry[]>([]);
 
   const [newEntry, setNewEntry] = useState({
-    farmId: { name: "", location: "" },
+    userId: "", // <-- Add this
+    farmId: { name: "", location: "", _id: "" },
     weather: { forecast: "", temperature: "", humidity: "" },
     soil: { pH: 0, moisture: "" },
     upcomingTasks: [],
-    image: undefined, // or just omit it if it's optional
+    image: undefined,
     charts: {
       rh: Array(5).fill({ day: "", value: 0 }),
       temp: Array(5).fill({ time: "", value: 0 }),
@@ -58,12 +63,12 @@ export default function DashboardManagementPage() {
     },
   });
 
-  const userId = session?.user?.id;
+  const adminUserId = session?.user?.id;
   const token = session?.user?.token;
 
   // Fetch all dashboard data, including all necessary fields
   const fetchDashboards = async () => {
-    if (!userId || !token) {
+    if (!adminUserId || !token) {
       console.error("User ID or Token not provided.");
       return;
     }
@@ -112,11 +117,11 @@ export default function DashboardManagementPage() {
   };
 
   useEffect(() => {
-    if (status === "authenticated" && userId && token) {
+    if (status === "authenticated" && adminUserId && token) {
       fetchFarms();
       fetchDashboards();
     }
-  }, [status, userId, token]);
+  }, [status, adminUserId, token]);
 
   useEffect(() => {
     if (farms.length && dashboards.length) {
@@ -129,7 +134,7 @@ export default function DashboardManagementPage() {
           ? matchingDashboard
           : {
               _id: `no-dashboard-${farm._id}`,
-              userId: userId ?? "",
+              userId: farm.userId ?? "", // <-- set client userId from farm
               farmId: {
                 _id: farm._id,
                 name: farm.name,
@@ -167,7 +172,7 @@ export default function DashboardManagementPage() {
   };
 
   const handleSave = async (dashboardId?: string) => {
-    if (!userId || !token || !editingEntry) return;
+    if (!adminUserId || !token || !editingEntry) return;
 
     const isNew = !dashboardId || dashboardId.startsWith("no-dashboard");
     const url = isNew
@@ -182,7 +187,7 @@ export default function DashboardManagementPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ ...editingEntry, userId }),
+        body: JSON.stringify(editingEntry),
       });
 
       if (res.ok) {
@@ -198,13 +203,26 @@ export default function DashboardManagementPage() {
   };
 
   const handleAddNewEntry = async () => {
+    const selectedFarm = farms.find((farm) => farm._id === newEntry.farmId._id);
+    const userId = selectedFarm?.userId || "";
+
+    if (!userId) {
+      console.error("No userId found for selected farm");
+      return;
+    }
+
+    const entryWithUser = {
+      ...newEntry,
+      userId,
+    };
+
     try {
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/dashboard`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(newEntry),
+          body: JSON.stringify(entryWithUser),
         }
       );
 
@@ -212,12 +230,15 @@ export default function DashboardManagementPage() {
 
       const saved = await res.json();
       setMergedData((prev) => [...prev, saved]);
+
+      // reset newEntry
       setNewEntry({
-        farmId: { name: "", location: "" },
+        userId: "",
+        farmId: { name: "", location: "", _id: "" },
         weather: { forecast: "", temperature: "", humidity: "" },
         soil: { pH: 0, moisture: "" },
         upcomingTasks: [],
-        image: undefined, // or just omit it if it's optional
+        image: undefined,
         charts: {
           rh: Array(5).fill({ day: "", value: 0 }),
           temp: Array(5).fill({ time: "", value: 0 }),
@@ -230,7 +251,8 @@ export default function DashboardManagementPage() {
   };
 
   const handleDelete = async (dashboardId: string) => {
-    if (!userId || !token) return;
+    if (!adminUserId || !token) return;
+
     const confirmDelete = confirm(
       "Are you sure you want to delete this dashboard?"
     );
